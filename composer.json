@@ -1,0 +1,37 @@
+{
+    "name": "zheltikov/simple-migrator",
+    "description": "A simple database migration tool.",
+    "type": "library",
+    "keywords": [
+        "database",
+        "migration",
+        "postgresql"
+    ],
+    "homepage": "https://github.com/zheltikov/php-simple-migrator",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Max Zheltikov",
+            "homepage": "https://github.com/zheltikov"
+        }
+    ],
+    "require": {
+        "php": ">=8.0",
+        "ext-pdo": "*"
+    },
+    "config": {
+        "platform": {
+            "php": "8.0.0"
+        },
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "bin": [
+        "bin/simple-migrator"
+    ],
+    "autoload": {
+        "psr-4": {
+            "Zheltikov\\SimpleMigrator\\": "src/"
+        }
+    }
+}

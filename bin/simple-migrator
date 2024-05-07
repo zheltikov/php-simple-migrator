@@ -1,0 +1,62 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+namespace Zheltikov\SimpleMigrator;
+
+function main(int $argc, array $argv): int
+{
+    if (!ini_get('date.timezone')) {
+        ini_set('date.timezone', 'UTC');
+    }
+
+    foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../vendor/autoload.php'] as $file) {
+        if (file_exists($file)) {
+            require_once($file);
+            break;
+        }
+    }
+
+    if ($argc < 3) {
+        usage:
+        $usage = <<<USAGE
+
+Usage: %s COMMAND CONFIG_FILE
+
+COMMAND is one of the following actions:
+    up             Apply the next migration
+    down           Revert to the previous migration
+    latest         Apply all migrations up to the latest one
+    current        Print the ID of the migration currently applied to the database
+
+CONFIG_FILE points to the migration config file.
+
+
+USAGE;
+
+        fprintf(STDERR, $usage, $argv[0] ?? basename(__FILE__));
+        return 1;
+    }
+
+    $command = $argv[1];
+    if (!in_array($command, ['up', 'down', 'latest', 'current'], true)) {
+        fprintf(STDERR, 'Unknown command %s\n', var_export($command, true));
+        goto usage;
+    }
+
+    $file = $argv[2];
+    /** @var Config $config */
+    $config = require($file);
+
+    $migrator = new Migrator($config);
+
+    return match ($command) {
+        'up' => $migrator->up(),
+        'down' => $migrator->down(),
+        'latest' => $migrator->latest(),
+        'current' => $migrator->current(),
+    };
+}
+
+exit(main($argc, $argv));
