@@ -19,7 +19,7 @@ use Zheltikov\SimpleMigrator\{Config, Migration, MigrationSet};
 
 return new Config(
     // Supply a PDO object here to connect to the database
-    pdo: new PDO('pgsql:host=localhost;port=5432;dbname=postgres;user=postgres;password=secret'),
+    PDO: new PDO('pgsql:host=localhost;port=5432;dbname=postgres;user=postgres;password=secret'),
     
     // Define your migrations here...
     migrationSet: new MigrationSet([
