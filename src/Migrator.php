@@ -222,13 +222,7 @@ class Migrator
     protected function getCurrentMigrationId(): ?string
     {
         $rows = $this->executeSql(
-            sql: /** @lang PostgreSQL */ "
-                SELECT id
-                  FROM {$this->config->getTableName()}
-                 ORDER BY timestamp DESC
-                 LIMIT 1
-                   FOR UPDATE;
-            ",
+            sql: $this->sqlSelectMigrationId(),
         );
 
         foreach ($rows ?? [] as $row) {
@@ -236,6 +230,25 @@ class Migrator
         }
 
         return null;
+    }
+
+    protected function sqlSelectMigrationId(): string
+    {
+        return match ($this->config->getDialect()) {
+            Dialect::POSTGRESQL => /** @lang PostgreSQL */ "
+                SELECT id
+                  FROM {$this->config->getTableName()}
+                 ORDER BY timestamp DESC
+                 LIMIT 1
+                   FOR UPDATE;
+            ",
+            Dialect::SQLITE => /** @lang SQLite */ "
+                SELECT id
+                  FROM {$this->config->getTableName()}
+                 ORDER BY timestamp DESC
+                 LIMIT 1;
+            ",
+        };
     }
 
     /**
@@ -246,15 +259,26 @@ class Migrator
     protected function setCurrentMigrationId(?string $id): void
     {
         $this->executeSql(
-            sql: /** @lang PostgreSQL */ "
-                INSERT INTO {$this->config->getTableName()} (id, timestamp)
-                VALUES (:id, :timestamp);
-            ",
+            sql: $this->sqlInsertMigrationId(),
             params: [
                 'id'        => $id,
                 'timestamp' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u'),
             ],
         );
+    }
+
+    protected function sqlInsertMigrationId(): string
+    {
+        return match ($this->config->getDialect()) {
+            Dialect::POSTGRESQL => /** @lang PostgreSQL */ "
+                INSERT INTO {$this->config->getTableName()} (id, timestamp)
+                VALUES (:id, :timestamp);
+            ",
+            Dialect::SQLITE => /** @lang SQLite */ "
+                INSERT INTO {$this->config->getTableName()} (id, timestamp)
+                VALUES (:id, :timestamp);
+            ",
+        };
     }
 
     /**
@@ -266,10 +290,7 @@ class Migrator
     {
         try {
             $rows = $this->executeSql(
-                sql: /** @lang PostgreSQL */ "
-                    SELECT to_regclass(:table) AS ok
-                       FOR UPDATE;
-                ",
+                sql: $this->sqlCheckTable(),
                 params: [
                     'table' => $this->config->getTableName(),
                 ],
@@ -290,14 +311,44 @@ class Migrator
         } catch (Throwable) {
             fprintf(STDERR, "Creating %s table...\n", var_export($this->config->getTableName(), true));
             $this->executeSql(
-                sql: /** @lang PostgreSQL */ "
-                    CREATE TABLE {$this->config->getTableName()} (
-                        id        VARCHAR,
-                        timestamp TIMESTAMP NOT NULL
-                    );
-                ",
+                sql: $this->sqlCreateTable(),
             );
         }
+    }
+
+    protected function sqlCheckTable(): string
+    {
+        return match ($this->config->getDialect()) {
+            Dialect::POSTGRESQL => /** @lang PostgreSQL */ "
+                SELECT to_regclass(:table) AS ok
+                   FOR UPDATE;
+            ",
+            Dialect::SQLITE => /** @lang SQLite */ "
+                SELECT CASE WHEN EXISTS(
+                    SELECT name
+                      FROM sqlite_master
+                     WHERE type = 'table' AND name = :table
+                ) THEN 'ok' ELSE NULL END;
+            ",
+        };
+    }
+
+    protected function sqlCreateTable(): string
+    {
+        return match ($this->config->getDialect()) {
+            Dialect::POSTGRESQL => /** @lang PostgreSQL */ "
+                CREATE TABLE {$this->config->getTableName()} (
+                    id        VARCHAR,
+                    timestamp TIMESTAMP NOT NULL
+                );
+            ",
+            Dialect::SQLITE => /** @lang SQLite */ "
+                CREATE TABLE {$this->config->getTableName()} (
+                    id        TEXT,
+                    timestamp TEXT NOT NULL
+                );
+            ",
+        };
     }
 
     protected function startTransaction(): void

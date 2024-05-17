@@ -15,11 +15,11 @@ Then, define a configuration file in your project, for example `migration_config
 ```php
 <?php
 
-use Zheltikov\SimpleMigrator\{Config, Migration, MigrationSet};
+use Zheltikov\SimpleMigrator\{Config, Dialect, Migration, MigrationSet};
 
 return new Config(
-    // Supply a PDO object here to connect to the database
-    PDO: new PDO('pgsql:host=localhost;port=5432;dbname=postgres;user=postgres;password=secret'),
+    // Supply here a closure returning a PDO connection to the database
+    PDO: fn() => new PDO('pgsql:host=localhost;port=5432;dbname=postgres;user=postgres;password=secret'),
     
     // Define your migrations here...
     migrationSet: new MigrationSet([
@@ -39,6 +39,10 @@ return new Config(
     // Optionally, change the name of the migration log table.
     // By default, it is 'migrations'.
     tableName: 'my_migrations',
+    
+    // You can also choose an SQL dialect here.
+    // By default, it is Dialect::POSTGRESQL
+    dialect: Dialect::SQLITE,
 );
 ```
 
@@ -68,4 +72,4 @@ CONFIG_FILE points to the migration config file.
 
 - [X] PostgreSQL support (via PDO)
 - [ ] MySQL support
-- [ ] SQLite support
+- [X] SQLite support
