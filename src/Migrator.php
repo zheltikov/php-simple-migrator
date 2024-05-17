@@ -14,6 +14,7 @@ class Migrator
 {
     public function __construct(
         protected Config $config,
+        protected bool $silent = false,
     ) {
     }
 
@@ -28,7 +29,7 @@ class Migrator
     public function up(): int
     {
         if ($this->config->getMigrationSet()->count() === 0) {
-            fprintf(STDERR, "No migrations in the set.\n");
+            $this->log("No migrations in the set.\n");
             return 0;
         }
 
@@ -44,7 +45,7 @@ class Migrator
             }
 
             if ($next === null) {
-                fprintf(STDERR, "No migration to apply.\n");
+                $this->log("No migration to apply.\n");
                 $this->rollbackTransaction();
                 return 0;
             }
@@ -52,8 +53,7 @@ class Migrator
             try {
                 $this->executeSql($next->getUp());
             } catch (Throwable $e) {
-                fprintf(
-                    STDERR,
+                $this->error(
                     "Failed to execute migration %s upwards: %s.\n",
                     var_export($next->getId(), true),
                     $e->getMessage(),
@@ -65,11 +65,11 @@ class Migrator
             $this->setCurrentMigrationId($next->getId());
             $this->commitTransaction();
 
-            fprintf(STDERR, "Successfully applied migration %s.\n", var_export($next->getId(), true));
+            $this->log("Successfully applied migration %s.\n", var_export($next->getId(), true));
 
             return 0;
         } catch (Throwable $e) {
-            fprintf(STDERR, "ERROR: %s\n", $e->getMessage());
+            $this->error("ERROR: %s\n", $e->getMessage());
             $this->rollbackTransaction();
             return (int) $e->getCode() ?: 1;
         }
@@ -81,7 +81,7 @@ class Migrator
     public function down(): int
     {
         if ($this->config->getMigrationSet()->count() === 0) {
-            fprintf(STDERR, "No migrations in the set.\n");
+            $this->log("No migrations in the set.\n");
             return 0;
         }
 
@@ -91,14 +91,14 @@ class Migrator
 
             $currentId = $this->getCurrentMigrationId();
             if ($currentId === null) {
-                fprintf(STDERR, "No migration currently applied, nothing to do.\n");
+                $this->log("No migration currently applied, nothing to do.\n");
                 $this->rollbackTransaction();
                 return 0;
             }
 
             $current = $this->config->getMigrationSet()->getMigration($currentId);
             if ($current === null) {
-                fprintf(STDERR, "ERROR: Current migration not found, check your config file.\n");
+                $this->error("ERROR: Current migration not found, check your config file.\n");
                 $this->rollbackTransaction();
                 return 1;
             }
@@ -106,8 +106,7 @@ class Migrator
             try {
                 $this->executeSql($current->getDown());
             } catch (Throwable $e) {
-                fprintf(
-                    STDERR,
+                $this->error(
                     "Failed to execute migration %s downwards: %s.\n",
                     var_export($current->getId(), true),
                     $e->getMessage(),
@@ -121,11 +120,11 @@ class Migrator
 
             $this->commitTransaction();
 
-            fprintf(STDERR, "Successfully reverted migration %s.\n", var_export($current->getId(), true));
+            $this->log("Successfully reverted migration %s.\n", var_export($current->getId(), true));
 
             return 0;
         } catch (Throwable $e) {
-            fprintf(STDERR, "ERROR: %s\n", $e->getMessage());
+            $this->error("ERROR: %s\n", $e->getMessage());
             $this->rollbackTransaction();
             return (int) $e->getCode() ?: 1;
         }
@@ -137,7 +136,7 @@ class Migrator
     public function latest(): int
     {
         if ($this->config->getMigrationSet()->count() === 0) {
-            fprintf(STDERR, "No migrations in the set.\n");
+            $this->log("No migrations in the set.\n");
             return 0;
         }
 
@@ -161,8 +160,7 @@ class Migrator
                 try {
                     $this->executeSql($next->getUp());
                 } catch (Throwable $e) {
-                    fprintf(
-                        STDERR,
+                    $this->error(
                         "Failed to execute migration %s upwards: %s.\n",
                         var_export($next->getId(), true),
                         $e->getMessage(),
@@ -176,16 +174,16 @@ class Migrator
             }
 
             if ($okCount === 0) {
-                fprintf(STDERR, "No migrations to apply.\n");
+                $this->log("No migrations to apply.\n");
                 $this->rollbackTransaction();
             } else {
-                fprintf(STDERR, "Applied %d migrations.\n", $okCount);
+                $this->log("Applied %d migrations.\n", $okCount);
                 $this->commitTransaction();
             }
 
             return 0;
         } catch (Throwable $e) {
-            fprintf(STDERR, "ERROR: %s\n", $e->getMessage());
+            $this->error("ERROR: %s\n", $e->getMessage());
             $this->rollbackTransaction();
             return (int) $e->getCode() ?: 1;
         }
@@ -194,7 +192,7 @@ class Migrator
     public function current(): int
     {
         if ($this->config->getMigrationSet()->count() === 0) {
-            fprintf(STDERR, "No migrations in the set.\n");
+            $this->log("No migrations in the set.\n");
             return 0;
         }
 
@@ -204,14 +202,28 @@ class Migrator
             $currentId = $this->getCurrentMigrationId();
             $this->commitTransaction();
 
-            fprintf(STDERR, "Migration %s is currently applied.\n", var_export($currentId, true));
+            $this->log("Migration %s is currently applied.\n", var_export($currentId, true));
 
             return 0;
         } catch (Throwable $e) {
-            fprintf(STDERR, "ERROR: %s\n", $e->getMessage());
+            $this->error("ERROR: %s\n", $e->getMessage());
             $this->rollbackTransaction();
             return (int) $e->getCode() ?: 1;
         }
+    }
+
+    protected function log(string $format, mixed ...$values): void
+    {
+        if ($this->silent) {
+            return;
+        }
+
+        fprintf(STDERR, $format, $values);
+    }
+
+    protected function error(string $format, mixed ...$values): void
+    {
+        fprintf(STDERR, $format, $values);
     }
 
     /**
@@ -309,7 +321,7 @@ class Migrator
                 break;
             }
         } catch (Throwable) {
-            fprintf(STDERR, "Creating %s table...\n", var_export($this->config->getTableName(), true));
+            $this->log("Creating %s table...\n", var_export($this->config->getTableName(), true));
             $this->executeSql(
                 sql: $this->sqlCreateTable(),
             );
