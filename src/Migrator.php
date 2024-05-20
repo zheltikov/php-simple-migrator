@@ -218,12 +218,12 @@ class Migrator
             return;
         }
 
-        fprintf(STDERR, $format, $values);
+        fprintf(STDERR, $format, ...$values);
     }
 
     protected function error(string $format, mixed ...$values): void
     {
-        fprintf(STDERR, $format, $values);
+        fprintf(STDERR, $format, ...$values);
     }
 
     /**
